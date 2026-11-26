@@ -4704,6 +4704,22 @@ namespace dxvk {
         return false;
     }
 
+    // Images that cannot be relocated (shared, persistently mapped, sparse)
+    // can only take this path if they already have the required usage.
+    // Otherwise ensureImageCompatibility would end the render pass, log an
+    // error and fail anyway; bail out before that and let the caller use
+    // the regular copy path.  Shared images are common under embedders
+    // that composite through exported textures (e.g. a guest compositor).
+    if (!srcImage.canRelocate()
+     && (srcImage.info().usage & srcUsage.usage) != srcUsage.usage)
+      return false;
+
+    if (!dstImage.canRelocate()
+     && ((dstImage.info().usage & dstUsage.usage) != dstUsage.usage
+      || (dstImage.info().flags & dstUsage.flags) != dstUsage.flags
+      || !dstImage.isViewCompatible(dstFormat)))
+      return false;
+
     if (!ensureImageCompatibility(&dstImage, dstUsage)
      || !ensureImageCompatibility(&srcImage, srcUsage))
       return false;
